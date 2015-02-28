@@ -20,7 +20,7 @@ static char* ok =
   "Content-type: ";
 
 static char* bad_request = 
-  "HTTP/1.0 400 Bad Request\n"
+  "HTTP/1.0 404 Not Found\n"
   "Content-type: text/html\n"
   "Connection: close\n"
   "\n"
@@ -60,7 +60,8 @@ void HandleTCPClient(int clntSocket)
 	/* Parse first line of request */
 	char *line = getFirstLine(echoBuffer);
 	char method[16], version[16], URI[MAXLINE];
-	sscanf(echoBuffer, "%s %s %s", method, URI, version);
+	sscanf(line, "%s %s %s", method, URI, version);
+	free(line);
 
 	/* Handle if method isn't GET request */
 	if (strcmp(method, "GET") != 0) {
@@ -76,7 +77,6 @@ void HandleTCPClient(int clntSocket)
         /* See if there is more data to receive */
         //if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE, 0)) < 0)
         //    DieWithError("recv() failed");
-	free(line);
     }
 
     close(clntSocket);    /* Close client socket */
@@ -116,6 +116,8 @@ void sendFile(int clntSocket, char *filename) {
       size = send(clntSocket, file_buffer, read_size, 0);
 
   } while (read_size > 0);
+
+  fclose(fp);
 
   free(header);
   free(content);
