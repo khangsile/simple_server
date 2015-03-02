@@ -25,7 +25,7 @@ static char* ok =
 /*
   HTML for a 404 Not Found
  */
-static char* bad_request = 
+static char* bad_request_begin = 
   "HTTP/1.0 404 Not Found\n"
   "Content-type: text/html\n"
   "Connection: close\n"
@@ -33,7 +33,13 @@ static char* bad_request =
   "<html>\n"
   " <body>\n"
   "  <h1>Bad Request</h1>\n"
-  "  <p>File not found.</p>\n"
+  "  <p>The file at ";
+
+/*
+  HTML for a 404 Not Found
+ */
+static char* bad_request_end = 
+  " was not found</p>\n"
   " </body>\n"
   "</html>\n";
 
@@ -74,7 +80,7 @@ void HandleTCPClient(int clntSocket)
 
 	/* Handle if method isn't GET request */
 	if (strcmp(method, "GET") != 0) {
-	  send(clntSocket, invalid_method, strlen(invalid_method), 0);
+	  send(clntSocket, invalid_method, strlen(invalid_method) * sizeof(char), 0);
 	}
 
 	/* Add . to the beginning of file path to indicate start from current directory */
@@ -105,7 +111,13 @@ void sendFile(int clntSocket, char *filename) {
   int size = 0;
   /* If the file pointer is null, then the file does not exist. Return a 404 */
   if (!fp) {
-    size = send(clntSocket, bad_request, strlen(bad_request), 0);
+    int response_size = strlen(bad_request_begin) + strlen(bad_request_end) + strlen(filename);
+    char *bad_request = malloc( response_size * sizeof(char) );
+    strcpy(bad_request, bad_request_begin);
+    strcat(bad_request, filename);
+    strcat(bad_request, bad_request_end);
+    size = send(clntSocket, bad_request, response_size * sizeof(char), 0);
+    free(bad_request);
     if (size < 0)
       DieWithError("send() failed");
     return;
@@ -117,7 +129,7 @@ void sendFile(int clntSocket, char *filename) {
   
   /* Based on file type, get the content type */
   char *content = getContentType(filename, type);
-  int h_size = strlen(ok) + strlen(content);
+  int h_size = strlen(ok) + strlen(content) + 1; /* Make space for null terminator */
   /* Create the full header for an ok request */
   char *header = malloc( h_size * sizeof(char) ); 
   strcpy(header, ok);
@@ -125,6 +137,7 @@ void sendFile(int clntSocket, char *filename) {
 
   /* Send the header */
   size = send(clntSocket, header, strlen(header), 0);
+  printf("Header: \n%s", header);
 
   /* Read the entire file and send it back in chunks of FILEBUFSIZE */
   do {
@@ -151,8 +164,9 @@ char *getFirstLine(char *buffer) {
     }
   }
 
-  char* substr = malloc( i * sizeof(char) );
+  char* substr = malloc( (i+1) * sizeof(char) );
   strncpy(substr, buffer, i);
+  substr[i] = '\0';
   return substr;
 }
 
@@ -164,9 +178,11 @@ char *getFileType(char *filename) {
     if (filename[i] == '.')
       break;
   }
+  if (i < 0) i = 0;
 
-  char* type = malloc( (len - i) * sizeof(char) );
-  strncpy(type, filename+i, (len-i));
+  // Account for termination character
+  char* type = malloc( (len - i + 1) * sizeof(char) );
+  strncpy(type, filename+i, (len-i + 1));
   return type;
 }
 
@@ -175,6 +191,7 @@ char *getFileType(char *filename) {
  */
 char *getContentType(char *filename, char *type) {
   char *content = malloc( 32 * sizeof(char) );
+  printf("Type: %s\n", type);
   if (!strcmp(type, filename) || !strcmp(type, ".html")) {
     strcpy(content,"text/html\n\n");
   } else if (!strcmp(type, ".txt")) {

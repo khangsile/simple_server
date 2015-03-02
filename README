@@ -19,13 +19,14 @@ This means that if the client were to somehow send something of the form GET pat
 the request. As far as I've tested the server, it is unable to handle displaying the items in a directory, which means that looking for a 
 directory will return a 404. 
 
-My implementation assumes that the header is under a size of 2048 and pulls the entire request in one call. This is due to the fact that in 
-earlier testing, I found out that the recv function hangs until the client sends something to it. I wasn't sure how to handle this, but realized
-that the majority of the time, the needed information was under 2048 bytes. After receiving the header, the server ensures that its size is not
-empty. From there, the server pulls out only the first line from the header and using sscanf, groups the first line into method, URI, and
-version. Version, however, is unused. It then adds a to the uri, in order to specificy that the filepath should start from the current directory.
-Once it checks the method, the filepath goes on to the sendFile function that first determines whether the file is empty ("/") and attempts
-to open the correct file. For "/" it opens, index.html. If the file pointer is NULL, we return a 404 not found. The server then determines
-the type of file based on it's extension. If the file does not have an extension, it defaults to a content type of text/html. Once done,
-the file first sends back the header with the found content type and then parses the file sending back chunks of size 512 until the it reaches
-the end of the file. Then, it closes the connection.
+My implementation assumes that the header is under a size of 2048 bytes and the string for the file path size is under 512 bytes long. The 
+implementation then pulls the entire request in one call. This is due to the fact that in earlier testing, I found out that the recv function 
+hangs until the client sends something to it. I wasn't sure how to handle this, but realized that the majority of the time, the needed 
+information was under 2048 bytes. After receiving the header, the server ensures that its size is not empty. From there, the server pulls 
+out only the first line from the header and using sscanf, groups the first line into method, URI, and version. Version, however, is unused. 
+It then adds a to the uri, in order to specificy that the filepath should start from the current directory. Once it checks the method, the 
+filepath goes on to the sendFile function that first determines whether the file is empty ("/") and attempts to open the correct file. For 
+"/" it opens, index.html. If the file pointer is NULL, we return a 404 not found. The server then determines the type of file based on it's 
+extension. If the file does not have an extension, it defaults to a content type of text/html. Once done, the file first sends back the header 
+with the found content type and then parses the file sending back chunks of size 512 until the it reaches the end of the file. Then, it closes 
+the connection.
