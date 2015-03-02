@@ -1,0 +1,31 @@
+README: 
+
+In order to run the system, first call make. The Makefile will compile all of the necessary files, and output an executable, 'tcpserver'. 
+
+Usage: 
+./tcpserver <port number>
+
+Most of the changes to the original file are in the 'HandleTCPClient.c' file as the 'TCPEchoServer-Fork.c' already implements the necessary 
+framework for accepting the connection, retrieving the client socket number, creating a new process, and cleaning up child processes. 
+
+In the HandleTCPClient.c, I increased the buffer size in order to capture the entire header. Given the specifications of the assignment, it seems
+like only the first line of the header was necessary, 'GET /path HTTP/VERS', as this information was all that was needed to retrieve a file. In
+my implementation, I believe that if any other method besides GET is used, then the server will return a 400. If a file is not found, the server
+returns a 404 and just prints basic html that says 'File not found'. 
+
+In order for the server to function the first line of the request header should be formed specifically as
+GET /path/to/file HTTP/VERSION
+This means that if the client were to somehow send something of the form GET path/to/file HTTP/VERSION, then the server would be unable to handle
+the request. As far as I've tested the server, it is unable to handle displaying the items in a directory, which means that looking for a 
+directory will return a 404. 
+
+My implementation assumes that the header is under a size of 2048 and pulls the entire request in one call. This is due to the fact that in 
+earlier testing, I found out that the recv function hangs until the client sends something to it. I wasn't sure how to handle this, but realized
+that the majority of the time, the needed information was under 2048 bytes. After receiving the header, the server ensures that its size is not
+empty. From there, the server pulls out only the first line from the header and using sscanf, groups the first line into method, URI, and
+version. Version, however, is unused. It then adds a to the uri, in order to specificy that the filepath should start from the current directory.
+Once it checks the method, the filepath goes on to the sendFile function that first determines whether the file is empty ("/") and attempts
+to open the correct file. For "/" it opens, index.html. If the file pointer is NULL, we return a 404 not found. The server then determines
+the type of file based on it's extension. If the file does not have an extension, it defaults to a content type of text/html. Once done,
+the file first sends back the header with the found content type and then parses the file sending back chunks of size 512 until the it reaches
+the end of the file. Then, it closes the connection.

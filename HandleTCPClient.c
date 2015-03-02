@@ -14,11 +14,17 @@ char *getFirstLine(char *buffer); /* Parse first line */
 void sendFile(int clntSocket, char *filename); /* Send file function */
 void DieWithError(char *errorMessage);  /* Error handling function */
 
+/*
+  Base header for a good request
+ */
 static char* ok =
   "HTTP/1.0 200 OK\n"
   "Connection: close\n"
   "Content-type: ";
 
+/*
+  HTML for a 404 Not Found
+ */
 static char* bad_request = 
   "HTTP/1.0 404 Not Found\n"
   "Content-type: text/html\n"
@@ -31,6 +37,9 @@ static char* bad_request =
   " </body>\n"
   "</html>\n";
 
+/*
+  HTML if the method is not a GET request
+ */
 static char* invalid_method =
   "HTTP/1.0 400 Bad Request\n"
   "Content-type: text/html\n"
@@ -52,7 +61,6 @@ void HandleTCPClient(int clntSocket)
     if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE, 0)) < 0)
         DieWithError("recv() failed");
 
-    /* Send received string and receive again until end of transmission */
     if (recvMsgSize > 0)      /* zero indicates end of transmission */
     {
         //printf("%s\n", echoBuffer);
@@ -60,6 +68,7 @@ void HandleTCPClient(int clntSocket)
 	/* Parse first line of request */
 	char *line = getFirstLine(echoBuffer);
 	char method[16], version[16], URI[MAXLINE];
+	/* Break the first line of the request into the method, path, and http version */
 	sscanf(line, "%s %s %s", method, URI, version);
 	free(line);
 
@@ -68,6 +77,7 @@ void HandleTCPClient(int clntSocket)
 	  send(clntSocket, invalid_method, strlen(invalid_method), 0);
 	}
 
+	/* Add . to the beginning of file path to indicate start from current directory */
 	char filename[MAXLINE+1]; filename[0] = '.'; filename[1] = '\0';
 	strcat(filename, URI);
 
@@ -82,6 +92,7 @@ void HandleTCPClient(int clntSocket)
     close(clntSocket);    /* Close client socket */
 }
 
+/* Request method is good. Send the file to the client */
 void sendFile(int clntSocket, char *filename) {
   FILE *fp = NULL;
   /* Get the filename. If none provided, get index.html */
@@ -92,6 +103,7 @@ void sendFile(int clntSocket, char *filename) {
     fp = fopen(filename, "r");
 
   int size = 0;
+  /* If the file pointer is null, then the file does not exist. Return a 404 */
   if (!fp) {
     size = send(clntSocket, bad_request, strlen(bad_request), 0);
     if (size < 0)
@@ -100,16 +112,21 @@ void sendFile(int clntSocket, char *filename) {
   }
   int read_size = 0;
   char file_buffer[FILEBUFSIZE];
+  /* Get the file type based on the extension */
   char *type = getFileType(filename);
   
+  /* Based on file type, get the content type */
   char *content = getContentType(filename, type);
   int h_size = strlen(ok) + strlen(content);
+  /* Create the full header for an ok request */
   char *header = malloc( h_size * sizeof(char) ); 
   strcpy(header, ok);
   strcat(header, content);
 
+  /* Send the header */
   size = send(clntSocket, header, strlen(header), 0);
 
+  /* Read the entire file and send it back in chunks of FILEBUFSIZE */
   do {
     read_size = fread(file_buffer, sizeof(char), FILEBUFSIZE, fp);
     if (read_size > 0)
@@ -117,6 +134,7 @@ void sendFile(int clntSocket, char *filename) {
 
   } while (read_size > 0);
 
+  /* Cleanup */
   fclose(fp);
 
   free(header);
@@ -124,6 +142,7 @@ void sendFile(int clntSocket, char *filename) {
   free(type);
 }
 
+/* Gets the first line of the request header by finding the first occurence of a line break */
 char *getFirstLine(char *buffer) {
   int i;
   for(i=0; i < strlen(buffer); i++) {
@@ -137,6 +156,7 @@ char *getFirstLine(char *buffer) {
   return substr;
 }
 
+/* Gets the file type by starting from the end of the filename and finding the first . */
 char *getFileType(char *filename) {
   int len = strlen(filename);
   int i = len-1;
@@ -150,6 +170,9 @@ char *getFileType(char *filename) {
   return type;
 }
 
+/* Gets the content type based on the file type. If the type cannot be determined 
+   based on the filename, then the default value is text/html.
+ */
 char *getContentType(char *filename, char *type) {
   char *content = malloc( 32 * sizeof(char) );
   if (!strcmp(type, filename) || !strcmp(type, ".html")) {
